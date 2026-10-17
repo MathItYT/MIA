@@ -31,11 +31,11 @@ const INITIAL_ARTIFACTS = [
   {
     id: "red-neuronal",
     title: "Red Neuronal Profunda en $\\mathbb{R}^n$",
-    author: "Benjamín Ubilla",
+    author: "Cristóbal Rojas",
     category: "Machine Learning",
     badge: "Deep Learning",
-    objective: "Analizar la estructura multicapa de un perceptrón profundo, el rol de las matrices de pesos sinápticos $W^{(l)}$ y la propagación de activaciones capa por capa según la regla no lineal $a^{(l)} = \\sigma(W^{(l)} a^{(l-1)} + b^{(l)})$.",
-    description: "Visualización de una red neuronal artificial que ilustra la topología de capas (entrada en $\\mathbb{R}^4$, capas ocultas en $\\mathbb{R}^6$ y $\\mathbb{R}^5$, y salida en $\\mathbb{R}^3$). Los nodos circulares se dibujan encima de las conexiones sinápticas con colores por capa, permitiendo una inspección clara de las densidades de pesos y formulación en LaTeX.",
+    objective: "Comprender y manipular de forma interactiva una red neuronal multicapa con activación ReLU, analizando la propagación hacia adelante, el impacto de los pesos sinápticos y sesgos en la activación neuronal, y la optimización de parámetros mediante el algoritmo de descenso de gradiente para minimizar la función de pérdida.",
+    description: "Visualización interactiva de una red neuronal artificial que permite ajustar en tiempo real entradas, pesos y sesgos con activación ReLU, observando de manera dinámica la función de pérdida y los pasos de descenso de gradiente.",
     requirements: "Navegador compatible con WebGPU / WebAssembly, puntero para interacción.",
     fileUrl: "./artifacts/red_neuronal.py",
     imageUrl: "./artifacts/red_neuronal.png",
@@ -147,6 +147,8 @@ class MIAApp {
     document.getElementById("btn-open-upload")?.addEventListener("click", () => this.openUploadModal());
     document.getElementById("btn-back-to-library")?.addEventListener("click", () => this.navigateTo("library"));
     document.getElementById("btn-detail-back")?.addEventListener("click", () => this.navigateTo("library"));
+    document.getElementById("btn-copy-code")?.addEventListener("click", () => this.copyCurrentSourceCode());
+    document.getElementById("btn-copy-install")?.addEventListener("click", () => this.copyInstallCommand());
 
     // Controles de Sesión interactiva
     document.getElementById("btn-start-session")?.addEventListener("click", () => {
@@ -407,11 +409,11 @@ class MIAApp {
       }
     }
 
-    // Código fuente
-    const codeBlock = document.getElementById("detail-code-content");
-    if (codeBlock) {
-      codeBlock.textContent = art.sourceCode || "# Cargando código fuente...";
-    }
+    // Restablecer estado de botones de copia
+    const copyBtnText = document.getElementById("btn-copy-code-text");
+    if (copyBtnText) copyBtnText.textContent = "Copiar código fuente Python (.py)";
+    const copyInstallBtn = document.getElementById("btn-copy-install");
+    if (copyInstallBtn) copyInstallBtn.textContent = "Copiar";
 
     // Renderizar KaTeX en los metadatos del detalle
     this.renderKaTeX(this.viewDetail);
@@ -577,6 +579,78 @@ class MIAApp {
     } catch (err) {
       console.error("[MIA] Error leyendo archivo subido:", err);
       this.showToast("Error al procesar el archivo: " + err.message, "error");
+    }
+  }
+
+  async copyCurrentSourceCode() {
+    if (!this.currentArtifact) return;
+    let code = this.currentArtifact.sourceCode;
+    if (!code && this.currentArtifact.fileUrl) {
+      try {
+        const res = await fetch(this.currentArtifact.fileUrl);
+        if (res.ok) {
+          code = await res.text();
+          this.currentArtifact.sourceCode = code;
+        }
+      } catch (e) {
+        console.error("[MIA] Error al descargar código fuente:", e);
+      }
+    }
+
+    if (!code) {
+      this.showToast("No se pudo obtener el código fuente", "error");
+      return;
+    }
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(code);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = code;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      const copyBtnText = document.getElementById("btn-copy-code-text");
+      if (copyBtnText) copyBtnText.textContent = "✓ ¡Código copiado al portapapeles!";
+      this.showToast("Código fuente copiado al portapapeles", "success");
+      setTimeout(() => {
+        if (copyBtnText) copyBtnText.textContent = "Copiar código fuente Python (.py)";
+      }, 2500);
+    } catch (err) {
+      console.error("[MIA] Error al copiar:", err);
+      this.showToast("No se pudo copiar al portapapeles", "error");
+    }
+  }
+
+  async copyInstallCommand() {
+    const cmd = "pip install git+https://github.com/MathItYT/manimgl.git@personal";
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(cmd);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = cmd;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      const btn = document.getElementById("btn-copy-install");
+      if (btn) btn.textContent = "✓ Copiado";
+      this.showToast("Comando de instalación copiado", "success");
+      setTimeout(() => {
+        if (btn) btn.textContent = "Copiar";
+      }, 2000);
+    } catch (err) {
+      console.error("[MIA] Error al copiar comando:", err);
+      this.showToast("No se pudo copiar el comando", "error");
     }
   }
 

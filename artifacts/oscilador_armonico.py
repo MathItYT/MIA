@@ -7,7 +7,7 @@ class OsciladorArmonicoScene(Scene):
     Artefacto Educativo IMC: Oscilador Armónico y Espacio de Fases
     Autor: Benjamín Ubilla
     Objetivo: Estudiar la conservación de energía mecánica y las trayectorias elípticas
-    en el espacio de fases bidimensional (x, \\dot{x}) usando TexText y Tex.
+        en el espacio de fases bidimensional (x, \\dot{x}) usando TexText y Tex.
     """
 
     def construct(self):

@@ -7,7 +7,7 @@ class ProyeccionOrtogonalScene(ThreeDScene):
     Artefacto Educativo IMC: Proyección Ortogonal en R^3
     Autor: Benjamín Ubilla
     Objetivo: Visualizar geométrica e interactivamente la descomposición de un vector
-    en su proyección sobre un subespacio 2D (plano) y su complemento ortogonal usando TexText y Tex.
+        en su proyección sobre un subespacio 2D (plano) y su complemento ortogonal usando TexText y Tex.
     """
     always_depth_test = True
 

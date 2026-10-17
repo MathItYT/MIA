@@ -128,13 +128,21 @@
             </button>
           </div>
 
-          <!-- Código fuente desplegable opcional -->
-          <details style="margin-top: 1rem; border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem;">
-            <summary style="cursor: pointer; font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">
-              Ver código fuente Python (.py)
-            </summary>
-            <pre id="detail-code-content" style="margin-top: 0.75rem; max-height: 250px; overflow: auto; background: #05070a; padding: 0.75rem; border-radius: 6px; font-size: 11px; font-family: monospace; color: #a5b4fc;"></pre>
-          </details>
+          <!-- Instrucción de instalación de Manim y botón para copiar código fuente -->
+          <div class="detail-install-box" style="margin-top: 1.25rem; padding: 1rem; border: 1px solid var(--border-color); border-radius: 8px; background: rgba(15, 23, 42, 0.45);">
+            <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; margin-bottom: 0.5rem;">
+              Para ejecutar este artefacto de forma local, instala Manim:
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; background: #05070a; border: 1px solid var(--border-color); border-radius: 6px; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; font-family: monospace; font-size: 0.85rem; color: #38bdf8; overflow-x: auto;">
+              <code style="user-select: all;">pip install git+https://github.com/MathItYT/manimgl.git@personal</code>
+              <button class="btn btn-secondary btn-sm" id="btn-copy-install" title="Copiar comando de instalación" style="margin-left: 0.5rem; padding: 0.2rem 0.6rem; font-size: 0.75rem; white-space: nowrap;">
+                Copiar
+              </button>
+            </div>
+            <button class="btn btn-secondary" id="btn-copy-code" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+              <span>📋</span> <span id="btn-copy-code-text">Copiar código fuente Python (.py)</span>
+            </button>
+          </div>
         </div>
       </div>
     </section>
