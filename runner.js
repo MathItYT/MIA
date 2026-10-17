@@ -245,6 +245,10 @@ _mia_scene_token = ${token}
       this.setStatus("Sesión interactiva en ejecución (WebGPU)");
       setTimeout(() => {
         const container = document.getElementById("rendercanvas-focus-element-container");
+        const sessionContainer = document.getElementById("session-container");
+        if (container && sessionContainer && !sessionContainer.contains(container)) {
+          sessionContainer.appendChild(container);
+        }
         const focusInput = container ? (container.lastElementChild || container.querySelector("input")) : null;
         if (focusInput) {
           focusInput.focus({ preventScroll: true });

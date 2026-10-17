@@ -82,6 +82,10 @@ class MIAApp {
 
   ensureCanvasFocus() {
     const container = document.getElementById("rendercanvas-focus-element-container");
+    const sessionContainer = document.getElementById("session-container");
+    if (container && sessionContainer && !sessionContainer.contains(container)) {
+      sessionContainer.appendChild(container);
+    }
     const focusInput = container ? (container.lastElementChild || container.querySelector("input")) : null;
     if (focusInput && document.activeElement !== focusInput) {
       focusInput.focus({ preventScroll: true });
@@ -167,6 +171,21 @@ class MIAApp {
         container?.requestFullscreen().catch(() => {});
       } else {
         document.exitFullscreen().catch(() => {});
+      }
+    });
+
+    document.addEventListener("fullscreenchange", () => {
+      this.ensureCanvasFocus();
+      window.dispatchEvent(new Event("resize"));
+      const fsBtn = document.getElementById("btn-session-fullscreen");
+      if (fsBtn) {
+        if (document.fullscreenElement) {
+          fsBtn.innerHTML = "⛶ Salir pantalla completa";
+          fsBtn.title = "Salir de pantalla completa";
+        } else {
+          fsBtn.innerHTML = "⛶ Pantalla completa";
+          fsBtn.title = "Pantalla completa";
+        }
       }
     });
 
