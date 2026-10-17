@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MIA — Manim IMC Artifacts</title>
+  <script src="./coi-serviceworker.js"></script>
+  
+  <!-- KaTeX para renderizado de matemáticas de alta fidelidad -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+
+  <link rel="stylesheet" href="./styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Encabezado y Navegación Principal -->
+  <header class="navbar">
+    <div class="nav-brand" id="brand-logo-link">
+      <span class="brand-badge">IMC UC</span>
+      <div class="brand-info">
+        <span class="brand-title">MIA — Manim IMC Artifacts</span>
+        <span class="brand-sub">Instituto de Ingeniería Matemática y Computacional</span>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <button class="btn btn-secondary btn-sm" id="btn-nav-library">
+        📚 Biblioteca
+      </button>
+      <button class="btn btn-primary btn-sm" id="btn-open-upload">
+        ➕ Cargar Artefacto
+      </button>
+    </div>
+  </header>
+
+  <!-- Contenedor Principal de Vistas -->
+  <main class="main-content">
+
+    <!-- ========================================================
+         VISTA 1: BIBLIOTECA DE ARTEFACTOS (PA1)
+         ======================================================== -->
+    <section id="view-library" class="view-section active">
+      <div class="library-hero">
+        <div class="hero-text">
+          <h1>Biblioteca Digital de Artefactos</h1>
+          <p>Explora, consulta y ejecuta en vivo artefactos educativos interactivos desarrollados con ManimGL.</p>
+        </div>
+        <button class="btn btn-primary" onclick="document.getElementById('btn-open-upload').click()">
+          ➕ Cargar nuevo artefacto
+        </button>
+      </div>
+
+      <!-- Cuadrícula de artefactos (al menos 2 artefactos iniciales) -->
+      <div id="artifacts-grid" class="artifacts-grid">
+        <!-- Generado dinámicamente por app.js -->
+      </div>
+    </section>
+
+    <!-- ========================================================
+         VISTA 2: PÁGINA DE UN ARTEFACTO (PA2, PA3)
+         ======================================================== -->
+    <section id="view-detail" class="view-section">
+      <div class="detail-header-nav">
+        <button class="btn btn-secondary btn-sm" id="btn-back-to-library">
+          ← Volver a la biblioteca
+        </button>
+      </div>
+
+      <div class="detail-layout">
+        <!-- Columna Izquierda: Vista previa y metadatos técnicos -->
+        <div class="detail-media">
+          <div class="detail-preview-box" id="detail-preview-container">
+            <!-- Vista previa SVG/Imagen -->
+          </div>
+
+          <div class="metadata-card">
+            <div class="metadata-row">
+              <span class="metadata-label">Autor</span>
+              <span class="metadata-value" id="detail-author">Benjamín Ubilla</span>
+            </div>
+            <div class="metadata-row">
+              <span class="metadata-label">Categoría</span>
+              <span class="metadata-value" id="detail-category">Álgebra Lineal</span>
+            </div>
+            <div class="metadata-row">
+              <span class="metadata-label">Formato</span>
+              <span class="metadata-value" id="detail-format">ManimGL (.py)</span>
+            </div>
+            <div class="metadata-row">
+              <span class="metadata-label">Requisitos</span>
+              <span class="metadata-value" id="detail-requirements">WebGPU</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Columna Derecha: Información pedagógica y acciones -->
+        <div class="detail-info">
+          <div class="detail-author-badge">
+            <span>Docencia IMC UC</span> • <span id="detail-badge-author">Benjamín Ubilla</span>
+          </div>
+          <h1 class="detail-title" id="detail-title">Título del Artefacto</h1>
+
+          <div class="section-block">
+            <span class="section-label">Objetivo de Aprendizaje</span>
+            <div class="objective-box" id="detail-objective">
+              <!-- Objetivo pedagógico renderizado con KaTeX -->
+            </div>
+          </div>
+
+          <div class="section-block">
+            <span class="section-label">Descripción del Contenido</span>
+            <p class="detail-desc" id="detail-description">
+              <!-- Descripción renderizada con KaTeX -->
+            </p>
+          </div>
+
+          <!-- Opciones para iniciar sesión y regresar a la biblioteca -->
+          <div class="detail-actions">
+            <button class="btn btn-primary" id="btn-start-session">
+              ▶ Iniciar Sesión Interactiva
+            </button>
+            <button class="btn btn-secondary" id="btn-detail-back">
+              ← Regresar a la Biblioteca
+            </button>
+          </div>
+
+          <!-- Código fuente desplegable opcional -->
+          <details style="margin-top: 1rem; border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem;">
+            <summary style="cursor: pointer; font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">
+              Ver código fuente Python (.py)
+            </summary>
+            <pre id="detail-code-content" style="margin-top: 0.75rem; max-height: 250px; overflow: auto; background: #05070a; padding: 0.75rem; border-radius: 6px; font-size: 11px; font-family: monospace; color: #a5b4fc;"></pre>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================
+         VISTA 3: SESIÓN INTERACTIVA (PA4, PA5)
+         ======================================================== -->
+    <section id="view-session" class="view-section">
+      <div class="session-container" id="session-container">
+        <!-- Barra de herramientas superior de la sesión interactiva -->
+        <div class="session-toolbar">
+          <div class="session-toolbar-left">
+            <!-- Control obligatorio para cerrar la sesión y regresar a la página del mismo artefacto (PA5) -->
+            <button class="btn btn-danger btn-sm" id="btn-close-session" title="Cerrar sesión y regresar">
+              ← Cerrar sesión
+            </button>
+            <span class="session-artifact-title" id="session-title">Artefacto</span>
+          </div>
+
+          <div class="session-toolbar-right">
+            <div class="session-status-badge">
+              <span class="status-dot"></span>
+              <span id="session-status-text">WebGPU Activo</span>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-session-reset" title="Reiniciar artefacto">
+              🔄 Reiniciar
+            </button>
+            <button class="btn btn-secondary btn-sm" id="btn-session-fullscreen" title="Pantalla completa">
+              ⛶ Pantalla completa
+            </button>
+          </div>
+        </div>
+
+        <!-- Canvas interactivo de ejecución WebGPU -->
+        <div class="session-canvas-stage">
+          <canvas id="manim-canvas" width="1920" height="1080"></canvas>
+          <div class="session-help-overlay">
+            Interacción 3D activa con ratón y teclado
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================================
+       MODAL: FORMULARIO DE CARGA DE ARTEFACTOS (PA6, PA8)
+       ======================================================== -->
+  <div class="modal-overlay" id="modal-upload">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h2 class="modal-title">Cargar Nuevo Artefacto a la Biblioteca</h2>
+        <button class="modal-close" id="btn-close-upload-modal">&times;</button>
+      </div>
+
+      <form id="upload-form">
+        <div class="modal-body">
+          <!-- Alerta de validación de campos obligatorios (PA8) -->
+          <div class="alert-error" id="upload-error-banner">
+            <h4>No se puede cargar el artefacto</h4>
+            <p>Faltan los siguientes datos obligatorios requeridos por la plataforma:</p>
+            <ul id="upload-error-list"></ul>
+          </div>
+
+          <!-- Archivo .py obligatorio -->
+          <div class="form-group">
+            <label class="form-label">
+              Archivo fuente de ManimGL (.py)<span class="required">*</span>
+            </label>
+            <div class="file-dropzone" id="file-dropzone">
+              <input type="file" id="upload-file-input" accept=".py" style="display: none;">
+              <strong>Haz clic o arrastra un archivo .py aquí</strong>
+              <p>Debe ser un archivo Python compatible con ManimGL (que herede de Scene)</p>
+              <div class="file-selected-name" id="file-selected-name"></div>
+            </div>
+          </div>
+
+          <!-- Título obligatorio -->
+          <div class="form-group">
+            <label class="form-label" for="upload-title">
+              Título del artefacto<span class="required">*</span>
+            </label>
+            <input type="text" class="form-control" id="upload-title" placeholder="Ej: Oscilador Armónico en $\mathbb{R}^2$">
+          </div>
+
+          <!-- Autor obligatorio (prellenado con Benjamín Ubilla) -->
+          <div class="form-group">
+            <label class="form-label" for="upload-author">
+              Autor<span class="required">*</span>
+            </label>
+            <input type="text" class="form-control" id="upload-author" value="Benjamín Ubilla" placeholder="Ej: Benjamín Ubilla">
+          </div>
+
+          <!-- Objetivo de Aprendizaje obligatorio -->
+          <div class="form-group">
+            <label class="form-label" for="upload-objective">
+              Objetivo de aprendizaje pedagógico<span class="required">*</span>
+            </label>
+            <textarea class="form-control" id="upload-objective" placeholder="Describe qué aprenderá el estudiante (soporta fórmulas LaTeX con $...$)..."></textarea>
+          </div>
+
+          <!-- Descripción obligatoria -->
+          <div class="form-group">
+            <label class="form-label" for="upload-desc">
+              Descripción detallada<span class="required">*</span>
+            </label>
+            <textarea class="form-control" id="upload-desc" placeholder="Explicación del contenido y elementos matemáticos (soporta fórmulas LaTeX con $...$)..."></textarea>
+          </div>
+
+          <!-- Metadatos adicionales -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="form-group">
+              <label class="form-label" for="upload-category">Categoría temática</label>
+              <input type="text" class="form-control" id="upload-category" value="Álgebra y Cálculo">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="upload-requirements">Requisitos técnicos</label>
+              <input type="text" class="form-control" id="upload-requirements" value="WebGPU, ratón/cursor para rotación 3D">
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-upload">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btn-submit-upload">
+            Incorporar Artefacto a la Biblioteca
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Contenedor de notificaciones Toast -->
+  <div id="toast-container"></div>
+
+  <!-- Script modular de la aplicación -->
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
