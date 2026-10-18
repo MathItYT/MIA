@@ -226,6 +226,25 @@
             </div>
           </div>
 
+          <!-- Miniatura del artefacto obligatoria -->
+          <div class="form-group">
+            <label class="form-label">
+              Miniatura de vista previa (.png, .jpg, .webp)<span class="required">*</span>
+            </label>
+            <div class="file-dropzone" id="image-dropzone">
+              <input type="file" id="upload-image-input" accept="image/png, image/jpeg, image/webp" style="display: none;">
+              <strong>Haz clic o arrastra una imagen aquí</strong>
+              <p>Resolución recomendada: proporción 16:9 (ej. 1920×1080 o 1280×720)</p>
+              <div class="file-selected-name" id="image-selected-name" style="display: none;"></div>
+              <div id="image-preview-wrapper" style="display: none; margin-top: 0.6rem;">
+                <img id="image-preview" src="" alt="Vista previa de miniatura" style="max-height: 120px; border-radius: 6px; border: 1px solid var(--border-color); object-fit: contain;">
+                <div style="margin-top: 0.4rem;">
+                  <button type="button" id="btn-clear-image" class="btn btn-secondary" style="padding: 0.25rem 0.6rem; font-size: 0.78rem;">Quitar miniatura</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Título obligatorio -->
           <div class="form-group">
             <label class="form-label" for="upload-title">
@@ -234,12 +253,12 @@
             <input type="text" class="form-control" id="upload-title" placeholder="Ej: Oscilador Armónico en $\mathbb{R}^2$">
           </div>
 
-          <!-- Autor obligatorio (prellenado con Benjamín Ubilla) -->
+          <!-- Autor obligatorio -->
           <div class="form-group">
             <label class="form-label" for="upload-author">
               Autor<span class="required">*</span>
             </label>
-            <input type="text" class="form-control" id="upload-author" value="Benjamín Ubilla" placeholder="Ej: Benjamín Ubilla">
+            <input type="text" class="form-control" id="upload-author" placeholder="Ej: Benjamín Ubilla">
           </div>
 
           <!-- Objetivo de Aprendizaje obligatorio -->
@@ -262,7 +281,7 @@
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
             <div class="form-group">
               <label class="form-label" for="upload-category">Categoría temática</label>
-              <input type="text" class="form-control" id="upload-category" value="Álgebra y Cálculo">
+              <input type="text" class="form-control" id="upload-category" placeholder="Ej: Álgebra y Cálculo">
             </div>
             <div class="form-group">
               <label class="form-label" for="upload-requirements">Requisitos técnicos</label>

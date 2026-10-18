@@ -116,6 +116,7 @@ class MIAApp {
 
     this.runner = runner;
     this.selectedFile = null;
+    this.selectedImageFile = null;
   }
 
   get manimCanvas() {
@@ -326,6 +327,40 @@ class MIAApp {
       }
     });
 
+    // Zona de arrastre de imagen de miniatura
+    const imageDropzone = document.getElementById("image-dropzone");
+    const imageInput = document.getElementById("upload-image-input");
+    const btnClearImage = document.getElementById("btn-clear-image");
+
+    imageDropzone?.addEventListener("click", (e) => {
+      if (e.target.closest("#btn-clear-image")) return;
+      imageInput?.click();
+    });
+
+    imageInput?.addEventListener("change", (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        this.handleImageSelected(e.target.files[0]);
+      }
+    });
+
+    imageDropzone?.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      imageDropzone.classList.add("dragover");
+    });
+    imageDropzone?.addEventListener("dragleave", () => imageDropzone.classList.remove("dragover"));
+    imageDropzone?.addEventListener("drop", (e) => {
+      e.preventDefault();
+      imageDropzone.classList.remove("dragover");
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        this.handleImageSelected(e.dataTransfer.files[0]);
+      }
+    });
+
+    btnClearImage?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.clearSelectedImage();
+    });
+
     // Envío del formulario de carga con validaciones obligatorias (PA6 y PA8)
     this.uploadForm?.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -343,6 +378,73 @@ class MIAApp {
       nameDisplay.textContent = `Archivo seleccionado: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
       nameDisplay.style.display = "block";
     }
+  }
+
+  handleImageSelected(file) {
+    if (!file.type.startsWith("image/") && !/\.(png|jpe?g|webp|gif)$/i.test(file.name)) {
+      this.showToast("Solo se admiten archivos de imagen (.png, .jpg, .webp)", "error");
+      return;
+    }
+    this.selectedImageFile = file;
+
+    const nameDisplay = document.getElementById("image-selected-name");
+    const previewWrapper = document.getElementById("image-preview-wrapper");
+    const previewImg = document.getElementById("image-preview");
+
+    if (nameDisplay) {
+      nameDisplay.textContent = `Miniatura seleccionada: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+      nameDisplay.style.display = "block";
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (previewImg) previewImg.src = e.target.result;
+      if (previewWrapper) previewWrapper.style.display = "block";
+    };
+    reader.readAsDataURL(file);
+  }
+
+  clearSelectedImage() {
+    this.selectedImageFile = null;
+    const imageInput = document.getElementById("upload-image-input");
+    if (imageInput) imageInput.value = "";
+    const nameDisplay = document.getElementById("image-selected-name");
+    if (nameDisplay) {
+      nameDisplay.textContent = "";
+      nameDisplay.style.display = "none";
+    }
+    const previewWrapper = document.getElementById("image-preview-wrapper");
+    if (previewWrapper) previewWrapper.style.display = "none";
+    const previewImg = document.getElementById("image-preview");
+    if (previewImg) previewImg.src = "";
+  }
+
+  fileToOptimizedDataUrl(file, maxWidth = 1280, maxHeight = 720, quality = 0.85) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > maxWidth || height > maxHeight) {
+            const ratio = Math.min(maxWidth / width, maxHeight / height);
+            width = Math.round(width * ratio);
+            height = Math.round(height * ratio);
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, width, height);
+          const mime = file.type === "image/png" ? "image/png" : "image/jpeg";
+          resolve(canvas.toDataURL(mime, quality));
+        };
+        img.onerror = () => resolve(e.target.result);
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   }
 
   // --- NAVEGACIÓN Y VISTAS ---
@@ -577,16 +679,19 @@ class MIAApp {
   openUploadModal() {
     this.uploadForm.reset();
     this.selectedFile = null;
+    this.clearSelectedImage();
     document.getElementById("file-selected-name").style.display = "none";
     this.uploadErrorBanner.classList.remove("visible");
     this.uploadErrorList.innerHTML = "";
-    // Prellenar autor por defecto con Benjamín Ubilla
-    document.getElementById("upload-author").value = "Benjamín Ubilla";
+    // Único campo prerrellenado por defecto: Requisitos técnicos
+    const reqElem = document.getElementById("upload-requirements");
+    if (reqElem) reqElem.value = "WebGPU / WebAssembly";
     this.modalUpload.classList.add("open");
   }
 
   closeUploadModal() {
     this.modalUpload.classList.remove("open");
+    this.clearSelectedImage();
     this.uploadErrorBanner.classList.remove("visible");
     this.uploadErrorList.innerHTML = "";
   }
@@ -610,6 +715,9 @@ class MIAApp {
     const missingFields = [];
     if (!this.selectedFile) {
       missingFields.push("Archivo fuente de ManimGL (.py)");
+    }
+    if (!this.selectedImageFile) {
+      missingFields.push("Miniatura de vista previa (.png, .jpg, .webp)");
     }
     if (!title) {
       missingFields.push("Título del artefacto");
@@ -642,12 +750,24 @@ class MIAApp {
       const sourceCode = await this.selectedFile.text();
       const newId = "artifact-" + Date.now();
 
-      // Si el archivo cargado es el oscilador armónico de prueba u otro, asociar su miniatura Full HD renderizada con Manim
+      // Miniatura: usar la imagen subida por el usuario si existe, o asociar miniatura por defecto
       let imageUrl = null;
-      if (this.selectedFile.name.includes("oscilador") || sourceCode.includes("OsciladorArmonico")) {
-        imageUrl = "./artifacts/oscilador_armonico.png";
-      } else {
-        imageUrl = "./artifacts/proyeccion_ortogonal.png"; // imagen base por defecto
+      if (this.selectedImageFile) {
+        try {
+          imageUrl = await this.fileToOptimizedDataUrl(this.selectedImageFile);
+        } catch (imgErr) {
+          console.warn("[MIA] Error optimizando miniatura subida:", imgErr);
+        }
+      }
+
+      if (!imageUrl) {
+        if (this.selectedFile.name.includes("oscilador") || sourceCode.includes("OsciladorArmonico")) {
+          imageUrl = "./artifacts/oscilador_armonico.png";
+        } else if (this.selectedFile.name.includes("neuronal") || sourceCode.includes("LiveNeuronLayer")) {
+          imageUrl = "./artifacts/red_neuronal.png";
+        } else {
+          imageUrl = "./artifacts/proyeccion_ortogonal.png"; // imagen base por defecto
+        }
       }
 
       const newArtifact = {
