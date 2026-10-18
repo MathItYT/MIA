@@ -162,12 +162,28 @@ if _wmod:
     }
   }
 
+  resetCanvas() {
+    const oldCanvas = document.getElementById("manim-canvas");
+    if (!oldCanvas) return null;
+    const newCanvas = document.createElement("canvas");
+    newCanvas.id = "manim-canvas";
+    newCanvas.width = oldCanvas.width || 1280;
+    newCanvas.height = oldCanvas.height || 720;
+    oldCanvas.replaceWith(newCanvas);
+    this.canvas = newCanvas;
+    window.__manimCanvasElement = newCanvas;
+    return newCanvas;
+  }
+
   async runScene(sourceCode, canvasElement, onStatus) {
     this.statusCallback = onStatus;
-    this.canvas = canvasElement;
     if (this.running) {
       await this.stopSession();
     }
+
+    const freshCanvas = this.resetCanvas() || canvasElement;
+    this.canvas = freshCanvas;
+    window.__manimCanvasElement = freshCanvas;
 
     this.running = true;
     const token = ++this.runToken;
@@ -183,36 +199,55 @@ transform_browser_source(${JSON.stringify(sourceCode)})
 
       this.setStatus("Iniciando renderizado WebGPU...");
 
-      // Las dimensiones del canvas se configuran estrictamente mediante sus atributos width y height (sin CSS)
-      window.__manimCanvasElement = canvasElement;
-      canvasElement.width = 1920;
-      canvasElement.height = 1080;
-      canvasElement.style.removeProperty("width");
-      canvasElement.style.removeProperty("height");
-      canvasElement.style.removeProperty("transform");
-      canvasElement.style.removeProperty("transform-origin");
+      const isFullscreen = typeof document !== "undefined" && !!document.fullscreenElement;
+      freshCanvas.width = isFullscreen ? 1920 : 1280;
+      freshCanvas.height = isFullscreen ? 1080 : 720;
+      freshCanvas.style.removeProperty("width");
+      freshCanvas.style.removeProperty("height");
+      freshCanvas.style.removeProperty("max-width");
+      freshCanvas.style.removeProperty("max-height");
+      freshCanvas.style.removeProperty("transform");
+      freshCanvas.style.removeProperty("transform-origin");
 
       const runnerCode = `
 import sys
+import asyncio
+import wgpu
 from manimlib import *
 from manimlib.config import manim_config
+from manimlib.constants import BLACK
+from manimlib.event_handler import EVENT_DISPATCHER
 from js import window
 
 manim_config.text.font = "Inter"
+manim_config.camera.background_color = BLACK
 
-# Teardown de escena anterior para reutilizar la ventana
+if hasattr(EVENT_DISPATCHER, "clear"):
+    EVENT_DISPATCHER.clear()
+else:
+    for _et in tuple(getattr(EVENT_DISPATCHER, "event_listners", {}).keys()):
+        EVENT_DISPATCHER.event_listners[_et].clear()
+    EVENT_DISPATCHER.draggable_object_listners.clear()
+    EVENT_DISPATCHER.pressed_keys.clear()
+
+# Compartir un único GPUDevice y GPUAdapter en todo el ciclo de vida de la página
+_shared_adapter = getattr(sys, "_manim_shared_adapter", None)
+_shared_device = getattr(sys, "_manim_shared_device", None)
+if _shared_adapter is None or _shared_device is None:
+    _shared_adapter = await wgpu.gpu.request_adapter_async(power_preference="high-performance")
+    _shared_device = await _shared_adapter.request_device_async()
+    sys._manim_shared_adapter = _shared_adapter
+    sys._manim_shared_device = _shared_device
+
+# Teardown de la escena anterior si existía
 _previous_scene = globals().get("_mia_scene")
-_reusable_window = (
-    getattr(_previous_scene, "window", None)
-    if _previous_scene is not None
-    else None
-)
 if _previous_scene is not None:
     try:
         _previous_scene.tear_down()
     except Exception:
         pass
     globals()["_mia_scene"] = None
+await asyncio.sleep(0.01)
 
 _exec_before = {
     id(v) for v in globals().values()
@@ -232,12 +267,33 @@ if not _candidates:
 _scene_class = _candidates[-1]
 _canvas_target = "manim-canvas"
 
-_mia_scene = await run_scene_from_class(
-    _scene_class,
+_mia_window = await Window.create_for_pyodide(
     _canvas_target,
-    size=(${canvasElement.width}, ${canvasElement.height}),
-    window=_reusable_window,
+    size=(${freshCanvas.width}, ${freshCanvas.height}),
+    adapter=_shared_adapter,
+    device=_shared_device,
 )
+globals()["_mia_window"] = _mia_window
+
+_mia_scene = _scene_class(window=_mia_window)
+globals()["_mia_scene"] = _mia_scene
+
+async def _runner_execute():
+    try:
+        await _mia_scene.build_async()
+        if not _mia_scene.is_window_closing():
+            await _mia_scene.update_frame_async(force_draw=True)
+            _mia_scene._browser_interaction_task = asyncio.create_task(
+                _mia_scene.browser_interaction_loop()
+            )
+            _mia_window._browser_interaction_task = _mia_scene._browser_interaction_task
+    except (asyncio.CancelledError, EndScene):
+        pass
+    except Exception as _e:
+        print(f"[MIA Scene Error]: {_e}", file=sys.stderr)
+
+_build_task = asyncio.create_task(_runner_execute())
+_mia_scene._build_task = _build_task
 _mia_scene_token = ${token}
 `;
 
@@ -269,29 +325,40 @@ _mia_scene_token = ${token}
     if (this.pyodide) {
       try {
         await this.pyodide.runPythonAsync(`
-try:
-    _s = globals().get("_mia_scene")
-    if _s is not None:
+import asyncio
+from manimlib.config import manim_config
+from manimlib.constants import BLACK
+from manimlib.event_handler import EVENT_DISPATCHER
+
+_s = globals().get("_mia_scene")
+if _s is not None:
+    try:
         _s.tear_down()
-        globals()["_mia_scene"] = None
-except Exception:
-    pass
+    except Exception:
+        pass
+    globals()["_mia_scene"] = None
+
+_w = globals().get("_mia_window")
+if _w is not None:
+    globals()["_mia_window"] = None
+
+manim_config.camera.background_color = BLACK
+if hasattr(EVENT_DISPATCHER, "clear"):
+    EVENT_DISPATCHER.clear()
+else:
+    for _et in tuple(getattr(EVENT_DISPATCHER, "event_listners", {}).keys()):
+        EVENT_DISPATCHER.event_listners[_et].clear()
+    EVENT_DISPATCHER.draggable_object_listners.clear()
+    EVENT_DISPATCHER.pressed_keys.clear()
+
+await asyncio.sleep(0.02)
 `);
       } catch (e) {
         console.warn("[MIA] Teardown warning:", e);
       }
     }
 
-    if (this.canvas) {
-      try {
-        // Limpiar el canvas
-        const ctx = this.canvas.getContext("webgpu");
-        // WebGPU canvas se limpia automáticamente en el siguiente ciclo o reconexión
-      } catch (e) {
-        // ignore
-      }
-    }
-
+    this.resetCanvas();
     this.setStatus("Sesión terminada.");
   }
 }

@@ -118,6 +118,13 @@
             </p>
           </div>
 
+          <div class="section-block">
+            <span class="section-label">Instructivo de Interacción</span>
+            <div class="instructions-box" id="detail-instructions">
+              <!-- Instructivo detallado de uso de ratón, teclado y gestos -->
+            </div>
+          </div>
+
           <!-- Opciones para iniciar sesión y regresar a la biblioteca -->
           <div class="detail-actions">
             <button class="btn btn-primary" id="btn-start-session">
@@ -178,10 +185,8 @@
 
         <!-- Canvas interactivo de ejecución WebGPU -->
         <div class="session-canvas-stage">
-          <canvas id="manim-canvas" width="1920" height="1080"></canvas>
-          <div class="session-help-overlay">
-            Interacción 3D activa con ratón y teclado
-          </div>
+          <canvas id="manim-canvas" width="1280" height="720"></canvas>
+          <div class="session-help-overlay" id="session-help-overlay"></div>
           <div id="rendercanvas-focus-element-container" style="position: absolute; top: 0; left: -9999px; pointer-events: none; opacity: 0;"></div>
         </div>
       </div>
@@ -261,7 +266,7 @@
             </div>
             <div class="form-group">
               <label class="form-label" for="upload-requirements">Requisitos técnicos</label>
-              <input type="text" class="form-control" id="upload-requirements" value="WebGPU, ratón/cursor para rotación 3D">
+              <input type="text" class="form-control" id="upload-requirements" value="WebGPU / WebAssembly">
             </div>
           </div>
         </div>
@@ -280,6 +285,6 @@
   <div id="toast-container"></div>
 
   <!-- Script modular de la aplicación -->
-  <script type="module" src="./app.js"></script>
+  <script type="module" src="./app.js?v=2"></script>
 </body>
 </html>

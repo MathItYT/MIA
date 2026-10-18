@@ -8,6 +8,17 @@ class ProyeccionOrtogonalScene(ThreeDScene):
     Autor: Benjamín Ubilla
     Objetivo: Visualizar geométrica e interactivamente la descomposición de un vector
         en su proyección sobre un subespacio 2D (plano) y su complemento ortogonal usando TexText y Tex.
+
+    Instructivo de interacción:
+      - Ratón / Puntero:
+          * Tecla 'd' + mover ratón: Rotar la cámara 3D de forma orbital alrededor del espacio vectorial.
+          * Tecla 'f' + mover ratón: Desplazar (pan) el encuadre de la cámara en el espacio.
+          * Clic y arrastrar: Trasladar el encuadre de la escena (drag to pan).
+          * Rueda del ratón: Acercar (zoom in) o alejar (zoom out) la cámara.
+      - Teclado:
+          * Tecla 'd': Mantener pulsada mientras se mueve el ratón para rotación 3D orbital.
+          * Tecla 'f': Mantener pulsada mientras se mueve el ratón para desplazamiento (pan).
+          * Tecla 'r': Restablecer la posición, orientación y zoom de la cámara al estado por defecto.
     """
     always_depth_test = True
 

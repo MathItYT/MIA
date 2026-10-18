@@ -8,8 +8,6 @@ from manimlib.event_handler import EVENT_DISPATCHER
 from manimlib.event_handler.event_type import EventType
 import manimlib.mobject.numbers as numbers_module
 
-manim_config["camera"]["background_color"] = "#FCFCFB"
-
 # -----------------------------------------------------------------------------
 # Patch DecimalNumber char cache to use Typst directly in native mode
 # -----------------------------------------------------------------------------
@@ -33,8 +31,8 @@ MATH_ORANGE = "#EB6834"
 MATH_GREEN = "#008300"
 MATH_RED = "#E34948"
 
-DIVERGING_POS = ("#6FB3D6", "#0E4F73")
-DIVERGING_NEG = ("#EE8B87", "#B12E24")
+DIVERGING_POS = ("#3584E4", "#0E4F73")
+DIVERGING_NEG = ("#E05252", "#991B1B")
 
 HOVER_COLOR = MATH_ORANGE
 CLICK_TOLERANCE = 0.06
@@ -355,6 +353,25 @@ class Interaction:
             self._set_hover(None)
         return self
 
+    def destroy(self):
+        self.enabled = False
+        if getattr(self, "catcher", None) is not None:
+            for listener in tuple(self.catcher.get_event_listners()):
+                EVENT_DISPATCHER.remove_listner(listener)
+            self.catcher.event_listners.clear()
+            self.catcher = None
+        if getattr(self, "halo", None) is not None:
+            try:
+                self.scene.remove(self.halo)
+            except Exception:
+                pass
+            self.halo = None
+        self.handles.clear()
+        self.keys.clear()
+        self.hover = None
+        self.active = None
+        self.scene = None
+
     def add(self, *handles):
         for h in handles:
             self.handles.append(h)
@@ -467,16 +484,17 @@ class Interaction:
 def make_neuron_layer(n, radius=0.18, color=MATH_BLUE, buff=0.25):
     neurons = VGroup(
         *(
-            Circle(radius=radius).set_stroke(INK, 1.5).set_fill(color, 0.0)
+            Circle(radius=radius).set_stroke(INK, 1.5).set_fill(BACKGROUND, 1.0)
             for _ in range(n)
         )
     )
     neurons.arrange(DOWN, buff=buff)
     neurons.neurons = neurons
+    neurons.set_z_index(2)
     return neurons
 
 
-def connect_layers(layer1, layer2, weights=None, max_width=5, min_width=0.8, seed=0):
+def connect_layers(layer1, layer2, weights=None, max_width=4.2, min_width=1.6, seed=0):
     rng = np.random.default_rng(seed)
     n1, n2 = len(layer1.neurons), len(layer2.neurons)
     if weights is None:
@@ -487,21 +505,23 @@ def connect_layers(layer1, layer2, weights=None, max_width=5, min_width=0.8, see
     into = [VGroup() for _ in range(n2)]
     for i, j in it.product(range(n1), range(n2)):
         w = weights[j, i]
-        line = Line(
-            layer1.neurons[i].get_center(),
-            layer2.neurons[j].get_center(),
-            buff=layer1.neurons[i].get_width() / 2,
-        )
+        r1 = layer1.neurons[i].get_width() / 2
+        r2 = layer2.neurons[j].get_width() / 2
+        p1 = layer1.neurons[i].get_center()
+        p2 = layer2.neurons[j].get_center()
+        u = normalize(p2 - p1)
+        line = Line(p1 + u * r1, p2 - u * r2)
         line.set_stroke(
             value_to_color(w, max_value=wmax),
             width=min_width + max_width * abs(w) / wmax,
-            opacity=0.75,
+            opacity=0.85,
         )
         line.weight = float(w)
         lines.add(line)
         into[j].add(line)
     lines.into = into
     lines.weights = weights
+    lines.set_z_index(0)
     return lines
 
 
@@ -634,17 +654,33 @@ class LiveNeuronLayer(Scene):
     Artefacto Educativo IMC: Red Neuronal y Descenso de Gradiente
     Autor: Cristóbal Rojas
     Objetivo: Comprender y manipular de forma interactiva una red neuronal multicapa con activación ReLU, analizando la propagación hacia adelante, el impacto de los pesos sinápticos y sesgos en la activación neuronal, y la optimización de parámetros mediante el algoritmo de descenso de gradiente para minimizar la función de pérdida.
+
+    Instructivo de interacción:
+      - Teclado:
+          * Barra espaciadora ('Espacio') o Flecha derecha ('→'): Avanzar a la siguiente etapa pedagógica (capa 2, target y gradiente).
+          * Tecla 'r': Reiniciar todos los parámetros (entradas, pesos y sesgos) a su configuración original.
     """
 
     drag_to_pan = False
+    default_camera_config = {
+        "background_color": "#FCFCFB",
+    }
 
     def setup(self):
         super().setup()
+        self.camera.background_rgba = list(color_to_rgba(BACKGROUND, 1.0))
         self.beat_marks = []
         self._title_mob = None
         self._caption_mob = None
         self.ui = Interaction(self)
         self.hand = Hand(self)
+
+    def tear_down(self):
+        ui = getattr(self, "ui", None)
+        if ui is not None:
+            ui.destroy()
+            self.ui = None
+        super().tear_down()
 
     @property
     def live(self):
@@ -714,6 +750,11 @@ class LiveNeuronLayer(Scene):
         return mob
 
     def chrome_on_top(self):
+        if hasattr(self, "inputs") and hasattr(self, "layer"):
+            if hasattr(self, "layer2") and self.layer2 is not None:
+                self.bring_to_front(self.inputs, self.layer, self.layer2)
+            else:
+                self.bring_to_front(self.inputs, self.layer)
         for m in (self._title_mob, self._caption_mob):
             if m is not None:
                 self.bring_to_front(m)
@@ -775,8 +816,7 @@ class LiveNeuronLayer(Scene):
         inputs.move_to(LEFT * 2.8)
         layer.move_to(RIGHT * 2.2)
         VGroup(inputs, layer).move_to(STAGE_CENTER)
-        lines = connect_layers(inputs, layer, W0, max_width=5, min_width=0.8)
-        self.track(lines, inputs, layer)
+        lines = connect_layers(inputs, layer, W0)
         self.inputs, self.layer, self.lines = inputs, layer, lines
         self.training = False
 
@@ -801,9 +841,11 @@ class LiveNeuronLayer(Scene):
         for num, c in zip(self.y_nums, layer.neurons):
             num.next_to(c, RIGHT, buff=0.15)
 
+        self.track(lines, inputs, layer)
         self.equation, self.relu_line = VGroup(), VGroup()
-        self.add(self.x_nums, inputs, layer, lines, self.y_nums)
-        self.show_focus()
+        self.add(lines, inputs, layer, self.x_nums, self.y_nums)
+        self.bring_to_front(inputs, layer)
+        self.show_focus(animate=False)
 
         for i in range(n_in):
             self.ui.add(
@@ -820,17 +862,22 @@ class LiveNeuronLayer(Scene):
     def track(lines, layer_a, layer_b):
         for j in range(len(lines.into)):
             for i in range(len(lines.into[j])):
-                a, b = layer_a.neurons[i], layer_b.neurons[j]
-                r = a.get_width() / 2
+                neuron_a = layer_a.neurons[i]
+                neuron_b = layer_b.neurons[j]
+                ra = neuron_a.get_width() / 2
+                rb = neuron_b.get_width() / 2
 
-                def follow(line):
-                    nonlocal a, b, r
-                    u = normalize(b.get_center() - a.get_center())
-                    line.put_start_and_end_on(
-                        a.get_center() + u * r, b.get_center() - u * r
-                    )
+                def make_follow(na, nb, rad_a, rad_b):
+                    def follow(line):
+                        pa = na.get_center()
+                        pb = nb.get_center()
+                        u = normalize(pb - pa)
+                        line.put_start_and_end_on(
+                            pa + u * rad_a, pb - u * rad_b
+                        )
+                    return follow
 
-                lines.into[j][i].add_updater(follow)
+                lines.into[j][i].add_updater(make_follow(neuron_a, neuron_b, ra, rb))
 
     def add_layer_handles(self, layer, lines, W, b, which):
         for j in range(len(layer.neurons)):
@@ -919,20 +966,45 @@ class LiveNeuronLayer(Scene):
             return eq, VGroup()
         return eq, line
 
-    def show_focus(self):
-        self.remove(self.equation, self.relu_line)
+    def show_focus(self, animate=True):
+        old_mobs = [m for m in (self.equation, self.relu_line) if m is not None and len(m) > 0]
         if self.focus is None:
-            self.equation, self.relu_line = VGroup(), VGroup()
+            new_eq, new_relu = VGroup(), VGroup()
+            new_mobs = []
         else:
-            self.equation, self.relu_line = self.make_equation()
-            self.add(self.equation, self.relu_line)
+            new_eq, new_relu = self.make_equation()
+            new_mobs = [m for m in (new_eq, new_relu) if m is not None and len(m) > 0]
+
+        if not animate:
+            if old_mobs:
+                self.remove(*old_mobs)
+            self.equation, self.relu_line = new_eq, new_relu
+            if new_mobs:
+                self.add(*new_mobs)
+            self.chrome_on_top()
+            return
+
+        anims = []
+        if old_mobs:
+            anims.append(FadeOut(VGroup(*old_mobs)))
+        if new_mobs:
+            anims.append(FadeIn(VGroup(*new_mobs)))
+
+        if anims:
+            self.play(*anims, run_time=QUICK)
+            if old_mobs:
+                self.remove(*old_mobs)
+
+        self.equation, self.relu_line = new_eq, new_relu
+        if new_mobs:
+            self.add(*new_mobs)
         self.chrome_on_top()
 
-    def set_focus(self, focus):
+    def set_focus(self, focus, animate=True):
         if focus == self.focus:
             return
         self.focus = focus
-        self.show_focus()
+        self.show_focus(animate=animate)
         self.refresh()
 
     def reset(self):
@@ -948,19 +1020,23 @@ class LiveNeuronLayer(Scene):
                 focused = self.focus is None or self.focus == (which, j)
                 lines.into[j][i].set_stroke(
                     value_to_color(w, max_value=W_RANGE),
-                    width=0.8 + 5 * abs(w) / W_RANGE,
-                    opacity=(0.75 if self.focus is None else 0.95) if focused else 0.12,
+                    width=1.6 + 4.2 * abs(w) / W_RANGE,
+                    opacity=(0.85 if self.focus is None else 0.95) if focused else 0.40,
                 )
 
     def refresh(self):
         self.restyle(self.lines, self.W, 1)
         for j, y in enumerate(self.y1()):
-            self.layer.neurons[j].set_fill(opacity=float(np.clip(y / Y_SCALE, 0, 1)))
+            a = float(np.clip(y / Y_SCALE, 0, 1))
+            self.layer.neurons[j].set_fill(
+                interpolate_color(BACKGROUND, NEURON, a), opacity=1.0
+            )
         if self.W2 is not None:
             self.restyle(self.lines2, self.W2, 2)
             for j, y in enumerate(self.y2()):
+                a = float(np.clip(y / Y_SCALE, 0, 1))
                 self.layer2.neurons[j].set_fill(
-                    opacity=float(np.clip(y / Y_SCALE, 0, 1))
+                    interpolate_color(BACKGROUND, NEURON, a), opacity=1.0
                 )
 
     def grow_second_layer(self):
@@ -997,7 +1073,6 @@ class LiveNeuronLayer(Scene):
         layer2 = make_neuron_layer(4, radius=0.24, color=NEURON, buff=0.45)
         layer2.move_to(np.array([OUT_X, y_mid, 0]))
         lines2 = connect_layers(self.layer, layer2, W20)
-        self.track(lines2, self.layer, layer2)
         y2_nums = VGroup(
             *(
                 LiveNumber(
@@ -1009,12 +1084,14 @@ class LiveNeuronLayer(Scene):
         for num, c in zip(y2_nums, layer2.neurons):
             num.next_to(c, RIGHT, buff=0.15)
         self.layer2, self.lines2, self.y2_nums = layer2, lines2, y2_nums
-        self.add(lines2, layer2)
+        self.add(lines2, self.layer, layer2)
         self.play(
             LaggedStart(*(GrowFromCenter(c) for c in layer2.neurons), lag_ratio=0.1),
-            LaggedStart(*(ShowCreation(l) for l in lines2), lag_ratio=0.02),
+            LaggedStart(*(ShowCreation(l) for l in lines2), lag_ratio=0.03),
             run_time=MEDIUM,
         )
+        self.track(lines2, self.layer, layer2)
+        self.bring_to_front(self.layer, layer2)
         self.add(y2_nums)
         self.play(
             LaggedStart(*(FadeIn(n) for n in y2_nums), lag_ratio=0.15), run_time=BRISK

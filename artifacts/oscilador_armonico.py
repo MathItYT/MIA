@@ -8,6 +8,17 @@ class OsciladorArmonicoScene(Scene):
     Autor: Benjamín Ubilla
     Objetivo: Estudiar la conservación de energía mecánica y las trayectorias elípticas
         en el espacio de fases bidimensional (x, \\dot{x}) usando TexText y Tex.
+
+    Instructivo de interacción:
+      - Ratón / Puntero:
+          * Tecla 'd' + mover ratón: Rotar la cámara en el espacio de fases.
+          * Tecla 'f' + mover ratón: Desplazar (pan) el encuadre de la escena.
+          * Clic y arrastrar: Trasladar el encuadre del plano de fases (drag to pan).
+          * Rueda del ratón: Ajustar la escala de visualización de los ejes coordenados (zoom).
+      - Teclado:
+          * Tecla 'd': Mantener pulsada mientras se mueve el ratón para rotación de perspectiva.
+          * Tecla 'f': Mantener pulsada mientras se mueve el ratón para desplazamiento (pan).
+          * Tecla 'r': Restablecer la posición y escala de la cámara a los valores por defecto.
     """
 
     def construct(self):

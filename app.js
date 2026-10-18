@@ -8,9 +8,10 @@
 import { ManimRunner } from "./runner.js";
 
 const runner = new ManimRunner();
+window.miaRunner = runner;
 
 // Almacenamiento local para artefactos cargados por el usuario
-const STORAGE_KEY = "mia:artifacts:v1";
+const STORAGE_KEY = "mia:artifacts:v2";
 
 // Artefactos iniciales con miniaturas Full HD generadas directamente con ManimGL (-sw --hd)
 const INITIAL_ARTIFACTS = [
@@ -27,6 +28,20 @@ const INITIAL_ARTIFACTS = [
     imageUrl: "./artifacts/proyeccion_ortogonal.png",
     sourceCode: null,
     isBuiltin: true,
+    instructions: {
+      mouse: [
+        { action: "Tecla D + Mover ratón", desc: "Rotar la cámara 3D de forma orbital alrededor del espacio vectorial." },
+        { action: "Tecla F + Mover ratón", desc: "Desplazar (pan) el encuadre de la cámara en el espacio." },
+        { action: "Clic y arrastrar", desc: "Trasladar el encuadre de la escena (drag to pan)." },
+        { action: "Rueda del ratón", desc: "Acercar (zoom in) o alejar (zoom out) la cámara tridimensional." },
+      ],
+      keyboard: [
+        { key: "D", desc: "Mantener pulsada mientras se mueve el ratón para rotar la perspectiva 3D." },
+        { key: "F", desc: "Mantener pulsada mientras se mueve el ratón para desplazar el encuadre (pan)." },
+        { key: "R", desc: "Restablecer la orientación, posición y zoom de la cámara al estado por defecto." },
+      ],
+      quickHelp: "🖱️ Tecla D + ratón: Rotar 3D | Tecla F + ratón: Pan | Rueda: Zoom | ⌨️ [R] Reset cámara",
+    },
   },
   {
     id: "red-neuronal",
@@ -41,6 +56,43 @@ const INITIAL_ARTIFACTS = [
     imageUrl: "./artifacts/red_neuronal.png",
     sourceCode: null,
     isBuiltin: true,
+    instructions: {
+      mouse: [],
+      keyboard: [
+        { key: "Espacio", desc: "Avanzar a la siguiente etapa pedagógica (capa 2, target y descenso de gradiente)." },
+        { key: "→", desc: "Flecha derecha: avanzar a la siguiente etapa pedagógica." },
+        { key: "R", desc: "Reiniciar todos los parámetros y pesos a su configuración original." },
+      ],
+      quickHelp: "⌨️ [Espacio] o [→] Avanzar etapa pedagógica | [R] Reiniciar red",
+    },
+  },
+  {
+    id: "oscilador-armonico",
+    title: "Oscilador Armónico y Espacio de Fases",
+    author: "Benjamín Ubilla",
+    category: "Física Matemática",
+    badge: "Dinámica",
+    objective: "Estudiar la conservación de energía mecánica y las trayectorias elípticas periódicas en el espacio de fases bidimensional $(x, \\dot{x})$ para un sistema conservativo gobernado por $\\ddot{x} + \\omega^2 x = 0$.",
+    description: "Demostración de un oscilador armónico simple con sus órbitas elípticas en el plano de fases asociadas a distintos niveles de energía constante $E_3 > E_2 > E_1$ y el punto de fase instantáneo en rotación.",
+    requirements: "Navegador compatible con WebGPU / WebAssembly.",
+    fileUrl: "./artifacts/oscilador_armonico.py",
+    imageUrl: "./artifacts/oscilador_armonico.png",
+    sourceCode: null,
+    isBuiltin: true,
+    instructions: {
+      mouse: [
+        { action: "Tecla D + Mover ratón", desc: "Rotar la cámara en el espacio de fases." },
+        { action: "Tecla F + Mover ratón", desc: "Desplazar (pan) el encuadre de la escena." },
+        { action: "Clic y arrastrar", desc: "Trasladar el encuadre del plano de fases (drag to pan)." },
+        { action: "Rueda del ratón", desc: "Ajustar la escala de visualización de los ejes coordenados (zoom)." },
+      ],
+      keyboard: [
+        { key: "D", desc: "Mantener pulsada mientras se mueve el ratón para rotar la perspectiva." },
+        { key: "F", desc: "Mantener pulsada mientras se mueve el ratón para desplazar el encuadre (pan)." },
+        { key: "R", desc: "Reiniciar la posición y escala de la cámara a los valores por defecto." },
+      ],
+      quickHelp: "🖱️ Tecla D + ratón: Rotar | Tecla F + ratón: Pan | Rueda: Zoom | ⌨️ [R] Reset cámara",
+    },
   },
 ];
 
@@ -59,12 +111,15 @@ class MIAApp {
     this.uploadForm = document.getElementById("upload-form");
     this.uploadErrorBanner = document.getElementById("upload-error-banner");
     this.uploadErrorList = document.getElementById("upload-error-list");
-    this.manimCanvas = document.getElementById("manim-canvas");
     this.sessionStatus = document.getElementById("session-status-text");
     this.toastContainer = document.getElementById("toast-container");
 
     this.runner = runner;
     this.selectedFile = null;
+  }
+
+  get manimCanvas() {
+    return document.getElementById("manim-canvas");
   }
 
   async init() {
@@ -178,6 +233,15 @@ class MIAApp {
 
     document.addEventListener("fullscreenchange", () => {
       this.ensureCanvasFocus();
+      const isFullscreen = !!document.fullscreenElement;
+      if (this.manimCanvas) {
+        this.manimCanvas.style.removeProperty("width");
+        this.manimCanvas.style.removeProperty("height");
+        this.manimCanvas.style.removeProperty("max-width");
+        this.manimCanvas.style.removeProperty("max-height");
+        this.manimCanvas.style.removeProperty("transform");
+        this.manimCanvas.style.removeProperty("transform-origin");
+      }
       window.dispatchEvent(new Event("resize"));
       const fsBtn = document.getElementById("btn-session-fullscreen");
       if (fsBtn) {
@@ -409,6 +473,32 @@ class MIAApp {
       }
     }
 
+    // Renderizar instructivo de interacción (ratón, teclado, gestos)
+    const instructionsContainer = document.getElementById("detail-instructions");
+    if (instructionsContainer) {
+      if (art.instructions) {
+        let html = '<div class="instructions-content">';
+        if (art.instructions.mouse && art.instructions.mouse.length) {
+          html += '<div class="instructions-group"><div class="instructions-group-title">🖱️ Ratón y Gestos</div><ul class="instructions-list">';
+          for (const item of art.instructions.mouse) {
+            html += `<li class="instruction-item"><span class="instruction-badge">${item.action}</span><span class="instruction-desc">${item.desc}</span></li>`;
+          }
+          html += '</ul></div>';
+        }
+        if (art.instructions.keyboard && art.instructions.keyboard.length) {
+          html += '<div class="instructions-group"><div class="instructions-group-title">⌨️ Teclado y Atajos</div><ul class="instructions-list">';
+          for (const item of art.instructions.keyboard) {
+            html += `<li class="instruction-item"><kbd class="instruction-kbd">${item.key}</kbd><span class="instruction-desc">${item.desc}</span></li>`;
+          }
+          html += '</ul></div>';
+        }
+        html += '</div>';
+        instructionsContainer.innerHTML = html;
+      } else {
+        instructionsContainer.innerHTML = '<p class="text-muted" style="margin:0; font-size:0.86rem;">Interacción estándar con ratón y teclado.</p>';
+      }
+    }
+
     // Restablecer estado de botones de copia
     const copyBtnText = document.getElementById("btn-copy-code-text");
     if (copyBtnText) copyBtnText.textContent = "Copiar código fuente Python (.py)";
@@ -426,13 +516,21 @@ class MIAApp {
     this.renderKaTeX(document.getElementById("session-title"));
     this.sessionStatus.textContent = "Iniciando WebGPU...";
 
-    // Las dimensiones del canvas se definen exclusivamente mediante sus atributos width y height (sin CSS)
-    this.manimCanvas.width = 1920;
-    this.manimCanvas.height = 1080;
+    // Resolución dinámica: 1920x1080 en pantalla completa, 1280x720 sin pantalla completa
+    const isFullscreen = !!document.fullscreenElement;
+    this.manimCanvas.width = isFullscreen ? 1920 : 1280;
+    this.manimCanvas.height = isFullscreen ? 1080 : 720;
     this.manimCanvas.style.removeProperty("width");
     this.manimCanvas.style.removeProperty("height");
+    this.manimCanvas.style.removeProperty("max-width");
+    this.manimCanvas.style.removeProperty("max-height");
     this.manimCanvas.style.removeProperty("transform");
     this.manimCanvas.style.removeProperty("transform-origin");
+
+    const helpOverlay = document.getElementById("session-help-overlay");
+    if (helpOverlay) {
+      helpOverlay.textContent = art.instructions?.quickHelp || "Interacción activa con ratón y teclado";
+    }
 
     try {
       let code = art.sourceCode;
@@ -671,5 +769,6 @@ class MIAApp {
 window.addEventListener("DOMContentLoaded", () => {
   const app = new MIAApp();
   window.miaApp = app;
+  window.miaRunner = runner;
   app.init();
 });
