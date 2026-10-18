@@ -19,6 +19,7 @@ const INITIAL_ARTIFACTS = [
     id: "proyeccion-ortogonal",
     title: "Proyección Ortogonal en $\\mathbb{R}^3$",
     author: "Benjamín Ubilla",
+    role: "Alumno IMC UC",
     category: "Álgebra Lineal",
     badge: "3D Interactivo",
     objective: "Comprender la descomposición canónica de un vector $\\vec{v} \\in \\mathbb{R}^3$ en su proyección ortogonal $\\mathrm{proj}_W(\\vec{v})$ sobre un subespacio 2D $W$ y su componente perpendicular $\\vec{v}^\\perp \\in W^\\perp$, validando que $\\vec{v} = \\mathrm{proj}_W(\\vec{v}) + \\vec{v}^\\perp$ con $\\vec{v}^\\perp \\cdot \\vec{w} = 0 \\; \\forall \\vec{w} \\in W$.",
@@ -47,6 +48,7 @@ const INITIAL_ARTIFACTS = [
     id: "red-neuronal",
     title: "Red Neuronal Profunda en $\\mathbb{R}^n$",
     author: "Cristóbal Rojas",
+    role: "Docente IMC UC",
     category: "Machine Learning",
     badge: "Deep Learning",
     objective: "Comprender y manipular de forma interactiva una red neuronal multicapa con activación ReLU, analizando la propagación hacia adelante, el impacto de los pesos sinápticos y sesgos en la activación neuronal, y la optimización de parámetros mediante el algoritmo de descenso de gradiente para minimizar la función de pérdida.",
@@ -70,6 +72,7 @@ const INITIAL_ARTIFACTS = [
     id: "oscilador-armonico",
     title: "Oscilador Armónico y Espacio de Fases",
     author: "Benjamín Ubilla",
+    role: "Alumno IMC UC",
     category: "Física Matemática",
     badge: "Dinámica",
     objective: "Estudiar la conservación de energía mecánica y las trayectorias elípticas periódicas en el espacio de fases bidimensional $(x, \\dot{x})$ para un sistema conservativo gobernado por $\\ddot{x} + \\omega^2 x = 0$.",
@@ -559,7 +562,11 @@ class MIAApp {
   renderDetail(art) {
     document.getElementById("detail-title").innerHTML = art.title;
     document.getElementById("detail-author").textContent = art.author;
+    const detailRole = document.getElementById("detail-role");
+    if (detailRole) detailRole.textContent = art.role || "Alumno IMC UC";
     document.getElementById("detail-badge-author").textContent = art.author;
+    const badgeRole = document.getElementById("detail-badge-role");
+    if (badgeRole) badgeRole.textContent = art.role || "Alumno IMC UC";
     document.getElementById("detail-objective").innerHTML = art.objective;
     document.getElementById("detail-description").innerHTML = art.description;
     document.getElementById("detail-requirements").textContent = art.requirements || "Navegador moderno con WebGPU";
@@ -699,6 +706,7 @@ class MIAApp {
   async handleArtifactUpload() {
     const titleInput = document.getElementById("upload-title");
     const authorInput = document.getElementById("upload-author");
+    const roleInput = document.getElementById("upload-role");
     const objectiveInput = document.getElementById("upload-objective");
     const descInput = document.getElementById("upload-desc");
     const reqInput = document.getElementById("upload-requirements");
@@ -706,6 +714,7 @@ class MIAApp {
 
     const title = titleInput.value.trim();
     const author = authorInput.value.trim();
+    const role = roleInput ? roleInput.value.trim() : "";
     const objective = objectiveInput.value.trim();
     const description = descInput.value.trim();
     const requirements = reqInput.value.trim() || "Navegador compatible con WebGPU";
@@ -724,6 +733,9 @@ class MIAApp {
     }
     if (!author) {
       missingFields.push("Autor del artefacto");
+    }
+    if (!role) {
+      missingFields.push("Rol del autor");
     }
     if (!objective) {
       missingFields.push("Objetivo de aprendizaje pedagógico");
@@ -774,6 +786,7 @@ class MIAApp {
         id: newId,
         title,
         author,
+        role,
         category,
         badge: "Cargado por Usuario",
         objective,

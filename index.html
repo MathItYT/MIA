@@ -83,6 +83,10 @@
               <span class="metadata-value" id="detail-author">Benjamín Ubilla</span>
             </div>
             <div class="metadata-row">
+              <span class="metadata-label">Rol</span>
+              <span class="metadata-value" id="detail-role">Alumno IMC UC</span>
+            </div>
+            <div class="metadata-row">
               <span class="metadata-label">Categoría</span>
               <span class="metadata-value" id="detail-category">Álgebra Lineal</span>
             </div>
@@ -100,7 +104,7 @@
         <!-- Columna Derecha: Información pedagógica y acciones -->
         <div class="detail-info">
           <div class="detail-author-badge">
-            <span>Docencia IMC UC</span> • <span id="detail-badge-author">Benjamín Ubilla</span>
+            <span id="detail-badge-role">Alumno IMC UC</span> • <span id="detail-badge-author">Benjamín Ubilla</span>
           </div>
           <h1 class="detail-title" id="detail-title">Título del Artefacto</h1>
 
@@ -259,6 +263,14 @@
               Autor<span class="required">*</span>
             </label>
             <input type="text" class="form-control" id="upload-author" placeholder="Ej: Benjamín Ubilla">
+          </div>
+
+          <!-- Rol obligatorio -->
+          <div class="form-group">
+            <label class="form-label" for="upload-role">
+              Rol del autor<span class="required">*</span>
+            </label>
+            <input type="text" class="form-control" id="upload-role" placeholder="Ej: Alumno IMC UC">
           </div>
 
           <!-- Objetivo de Aprendizaje obligatorio -->
