@@ -305,6 +305,7 @@ except Exception:
     window.__manimCanvasElement = freshCanvas;
 
     this.running = true;
+    window.__miaSessionActive = true;
     const token = ++this.runToken;
 
     try {
@@ -438,18 +439,34 @@ _mia_scene_token = ${token}
   }
 
   async stopSession() {
+    if (!this.running && !window.__miaSessionActive) return;
     this.running = false;
-    this.setStatus("Cerrando sesión interactiva...");
+    window.__miaSessionActive = false;
+    this.setStatus("Cerrando sesión interactiva y liberando dispositivo WebGPU...");
 
     if (this.pyodide) {
       try {
         await this.pyodide.runPythonAsync(`
+import sys
 import asyncio
 from manimlib.config import manim_config
 from manimlib.constants import BLACK
 from manimlib.event_handler import EVENT_DISPATCHER
 
 _s = globals().get("_mia_scene")
+_w = globals().get("_mia_window")
+
+# Extraer el dispositivo WebGPU (GPUDevice) antes del desmontaje
+_device = getattr(sys, "_manim_shared_device", None)
+if _device is None and _w is not None:
+    _device = getattr(_w, "device", None) or getattr(getattr(_w, "gpu", None), "device", None)
+if _device is None and _s is not None:
+    _cam = getattr(_s, "camera", None)
+    if _cam is not None:
+        _gpu = getattr(_cam, "gpu", None)
+        if _gpu is not None:
+            _device = getattr(_gpu, "device", None)
+
 if _s is not None:
     try:
         _s.tear_down()
@@ -457,9 +474,25 @@ if _s is not None:
         pass
     globals()["_mia_scene"] = None
 
-_w = globals().get("_mia_window")
 if _w is not None:
+    try:
+        _w.destroy()
+    except Exception:
+        pass
     globals()["_mia_window"] = None
+
+# Destrucción explícita a nivel macro del GPUDevice:
+# En WebGPU, device.destroy() invalida el dispositivo y libera instantáneamente
+# de la VRAM todos los buffers, texturas, pipelines y bind groups hijos.
+if _device is not None:
+    try:
+        _device.destroy()
+    except Exception:
+        pass
+
+# Limpiar referencias para que la siguiente sesión solicite un GPUDevice nuevo y limpio
+sys._manim_shared_device = None
+sys._manim_shared_adapter = None
 
 manim_config.camera.background_color = BLACK
 if hasattr(EVENT_DISPATCHER, "clear"):

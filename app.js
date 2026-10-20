@@ -127,6 +127,7 @@ class MIAApp {
   }
 
   async init() {
+    window.miaApp = this;
     this.loadArtifacts();
     this.setupEventListeners();
     await this.preloadInitialSourceCodes();
@@ -256,6 +257,21 @@ class MIAApp {
           fsBtn.innerHTML = "⛶ Pantalla completa";
           fsBtn.title = "Pantalla completa";
         }
+      }
+    });
+
+    // Soporte para botones Atrás/Adelante del navegador: si el usuario retrocede saliendo de la sesión,
+    // destruir el dispositivo WebGPU para liberar VRAM inmediatamente
+    window.addEventListener("popstate", () => {
+      if (this.currentView === "session" && !window.location.hash.startsWith("#sesion/") && this.runner?.running) {
+        this.runner.stopSession().catch((e) => console.warn("[MIA] Error al detener sesión en popstate:", e));
+      }
+    });
+
+    // Cierre o descarga de la página / pestaña
+    window.addEventListener("pagehide", () => {
+      if (this.runner?.running) {
+        this.runner.stopSession().catch(() => {});
       }
     });
 
@@ -452,6 +468,11 @@ class MIAApp {
 
   // --- NAVEGACIÓN Y VISTAS ---
   navigateTo(view, artifactId = null) {
+    // Si salimos de la sesión interactiva hacia otra vista, detener la sesión y destruir el GPUDevice
+    if (this.currentView === "session" && view !== "session" && this.runner?.running) {
+      this.runner.stopSession().catch((e) => console.warn("[MIA] Error al detener sesión en navigateTo:", e));
+    }
+
     this.currentView = view;
     this.viewLibrary.classList.remove("active");
     this.viewDetail.classList.remove("active");
@@ -491,6 +512,12 @@ class MIAApp {
 
   handleHashRoute() {
     const hash = window.location.hash;
+    // Si el usuario retrocede con el botón del navegador y sale de #sesion/,
+    // detener la sesión y destruir el GPUDevice para evitar fugas de VRAM
+    if (this.currentView === "session" && !hash.startsWith("#sesion/") && this.runner?.running) {
+      this.runner.stopSession().catch((e) => console.warn("[MIA] Error al detener sesión en handleHashRoute:", e));
+    }
+
     if (hash.startsWith("#artefacto/")) {
       const id = hash.replace("#artefacto/", "");
       if (this.currentView !== "detail" || this.currentArtifact?.id !== id) {
