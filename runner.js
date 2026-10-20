@@ -24,7 +24,7 @@ window.__manimNextFrame = () => new Promise((resolve) => {
   };
   const raf = typeof requestAnimationFrame === "function" ? requestAnimationFrame : null;
   if (raf) raf(finish);
-  timerId = setTimeout(finish, 250);
+  else timerId = setTimeout(finish, 250);
 });
 
 export class ManimRunner {
