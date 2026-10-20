@@ -99,13 +99,66 @@ export class ManimRunner {
       const { loadPyodide } = await import(pyodideUrl);
       this.pyodide = await loadPyodide();
 
-      this.setStatus("Instalando dependencias científicas de Python (NumPy, SciPy, SymPy)...");
-      await this.pyodide.loadPackage([
+      const basePackages = [
         "micropip", "numpy", "scipy", "pillow", "sympy",
         "matplotlib", "pygments", "pyyaml", "fonttools",
-      ]);
+      ];
 
-      this.setStatus("Instalando ruedas ManimGL y WGPU compiladas...");
+      // Determinar dinámicamente la ruta de site-packages en Pyodide
+      const sitePackages = this.pyodide.runPython("import site; site.getsitepackages()[0]");
+      const cacheMetaFile = `${sitePackages}/.mia_cache_meta.json`;
+
+      // Montar IDBFS para persistir paquetes instalados en el almacenamiento del navegador
+      let idbfsReady = false;
+      try {
+        this.pyodide.FS.mkdirTree(sitePackages);
+        this.pyodide.FS.mount(this.pyodide.FS.filesystems.IDBFS, {}, sitePackages);
+        idbfsReady = true;
+      } catch (mountErr) {
+        console.warn("[MIA Cache] Montaje IDBFS en site-packages omitido o ya montado:", mountErr);
+      }
+
+      // Sincronizar datos existentes desde IndexedDB hacia la memoria virtual
+      if (idbfsReady) {
+        try {
+          this.setStatus("Sincronizando paquetes de Python desde IDBFS...");
+          await this.syncFS(true);
+        } catch (syncErr) {
+          console.warn("[MIA Cache] Error al sincronizar desde IDBFS:", syncErr);
+        }
+      }
+
+      // Leer metadatos de la caché existente si están disponibles
+      let cachedMeta = null;
+      try {
+        if (this.checkPathExists(cacheMetaFile)) {
+          const raw = this.pyodide.FS.readFile(cacheMetaFile, { encoding: "utf8" });
+          cachedMeta = JSON.parse(raw);
+        }
+      } catch (readErr) {
+        console.warn("[MIA Cache] Error al leer metadata de caché previa:", readErr);
+      }
+
+      // Verificar si las dependencias científicas base están completas en la caché persistente
+      const basePackagesValid = Boolean(
+        cachedMeta &&
+        cachedMeta.pyodideVersion === pyodideUrl &&
+        Array.isArray(cachedMeta.basePackages) &&
+        basePackages.every((pkg) => cachedMeta.basePackages.includes(pkg)) &&
+        this.checkPathExists(`${sitePackages}/numpy`) &&
+        this.checkPathExists(`${sitePackages}/scipy`) &&
+        this.checkPathExists(`${sitePackages}/sympy`) &&
+        this.checkPathExists(`${sitePackages}/matplotlib`)
+      );
+
+      if (!basePackagesValid) {
+        this.setStatus("Instalando dependencias científicas de Python (NumPy, SciPy, SymPy)...");
+        await this.pyodide.loadPackage(basePackages);
+      } else {
+        this.setStatus("Dependencias científicas cargadas desde la caché IDBFS.");
+      }
+
+      // Obtener el manifiesto actual de ruedas compiladas (sin caché HTTP para detectar actualizaciones)
       const manifestUrl = new URL("./browser_wasm/dist/wheels/wheels.json", document.baseURI);
       const manifest = await fetch(manifestUrl, { cache: "no-store" }).then((r) => {
         if (!r.ok) throw new Error("No se pudo cargar wheels.json: " + r.status);
@@ -113,11 +166,73 @@ export class ManimRunner {
       });
       const wheelBase = new URL(".", manifestUrl).href;
 
-      await this.pyodide.runPythonAsync(`
-import micropip
-await micropip.install(${JSON.stringify(new URL(manifest.wgpu, wheelBase).href)})
-await micropip.install(${JSON.stringify(new URL(manifest.manimgl, wheelBase).href)})
-`);
+      const manimglUrl = new URL(manifest.manimgl, wheelBase).href;
+      const wgpuUrl = new URL(manifest.wgpu, wheelBase).href;
+
+      const currentManimFp = await this.getWheelFingerprint(manimglUrl, manifest.manimgl);
+      const currentWgpuFp = await this.getWheelFingerprint(wgpuUrl, manifest.wgpu);
+
+      const cachedManimFp = cachedMeta?.wheels?.manimglFingerprint || cachedMeta?.wheels?.manimgl;
+      const cachedWgpuFp = cachedMeta?.wheels?.wgpuFingerprint || cachedMeta?.wheels?.wgpu;
+
+      const manimNeedsUpdate = !basePackagesValid ||
+        !cachedManimFp ||
+        cachedManimFp !== currentManimFp ||
+        !this.checkPathExists(`${sitePackages}/manimlib`);
+
+      const wgpuNeedsUpdate = !basePackagesValid ||
+        !cachedWgpuFp ||
+        cachedWgpuFp !== currentWgpuFp ||
+        !this.checkPathExists(`${sitePackages}/wgpu`);
+
+      let cacheDirty = !basePackagesValid;
+
+      if (manimNeedsUpdate || wgpuNeedsUpdate) {
+        this.setStatus("Actualizando ruedas compiladas (ManimGL / WGPU)...");
+
+        // Si ManimGL cambió o se actualizó, eliminar la versión previa para evitar archivos huérfanos
+        if (manimNeedsUpdate) {
+          this.rmrf(`${sitePackages}/manimlib`);
+          this.removeMatchingDistInfo(sitePackages, "manimgl");
+        }
+
+        // Si WGPU cambió, eliminar la versión previa
+        if (wgpuNeedsUpdate) {
+          this.rmrf(`${sitePackages}/wgpu`);
+          this.removeMatchingDistInfo(sitePackages, "wgpu");
+        }
+
+        const installStatements = ["import micropip"];
+        if (wgpuNeedsUpdate) {
+          installStatements.push(`await micropip.install(${JSON.stringify(wgpuUrl)})`);
+        }
+        if (manimNeedsUpdate) {
+          installStatements.push(`await micropip.install(${JSON.stringify(manimglUrl)})`);
+        }
+
+        await this.pyodide.runPythonAsync(installStatements.join("\n"));
+        cacheDirty = true;
+      } else {
+        this.setStatus("Ruedas ManimGL y WGPU verificadas en caché IDBFS.");
+      }
+
+      // Si hubo instalación inicial o actualización de ruedas, guardar metadatos y persistir en IDBFS
+      if (cacheDirty && idbfsReady) {
+        const newMeta = {
+          pyodideVersion: pyodideUrl,
+          basePackages: basePackages,
+          wheels: {
+            manimgl: manifest.manimgl,
+            wgpu: manifest.wgpu,
+            manimglFingerprint: currentManimFp,
+            wgpuFingerprint: currentWgpuFp,
+          },
+          timestamp: Date.now(),
+        };
+        this.pyodide.FS.writeFile(cacheMetaFile, JSON.stringify(newMeta));
+        this.setStatus("Guardando paquetes instalados en almacenamiento persistente (IDBFS)...");
+        await this.syncFS(false);
+      }
 
       // Sincronizar módulos locales adaptados para el navegador
       try {
@@ -142,9 +257,13 @@ sys.modules["manimlib.utils.browser_code_transform"] = _mod
         if (windowCode) {
           await this.pyodide.runPythonAsync(`
 import sys
-_wmod = sys.modules.get("manimlib.window")
-if _wmod:
-    exec(${JSON.stringify(windowCode)}, _wmod.__dict__)
+try:
+    import manimlib.window
+    _wmod = sys.modules.get("manimlib.window")
+    if _wmod:
+        exec(${JSON.stringify(windowCode)}, _wmod.__dict__)
+except Exception:
+    pass
 `);
         }
       } catch (e) {
@@ -360,5 +479,122 @@ await asyncio.sleep(0.02)
 
     this.resetCanvas();
     this.setStatus("Sesión terminada.");
+  }
+
+  /**
+   * Sincroniza el sistema de archivos IDBFS con IndexedDB.
+   * @param {boolean} populate true para leer de IndexedDB a memoria; false para escribir memoria a IndexedDB.
+   */
+  async syncFS(populate) {
+    if (!this.pyodide || !this.pyodide.FS) return;
+    return new Promise((resolve, reject) => {
+      this.pyodide.FS.syncfs(populate, (err) => {
+        if (err) {
+          console.warn(`[MIA Cache] Advertencia en syncfs (populate=${populate}):`, err);
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
+
+  /**
+   * Elimina un archivo o directorio recursivamente dentro de pyodide.FS.
+   * @param {string} targetPath Ruta a eliminar.
+   */
+  rmrf(targetPath) {
+    if (!this.pyodide || !this.pyodide.FS) return;
+    try {
+      const info = this.pyodide.FS.analyzePath(targetPath);
+      if (!info.exists) return;
+      const stat = this.pyodide.FS.stat(targetPath);
+      if (this.pyodide.FS.isDir(stat.mode)) {
+        const entries = this.pyodide.FS.readdir(targetPath);
+        for (const entry of entries) {
+          if (entry === "." || entry === "..") continue;
+          this.rmrf(`${targetPath}/${entry}`);
+        }
+        this.pyodide.FS.rmdir(targetPath);
+      } else {
+        this.pyodide.FS.unlink(targetPath);
+      }
+    } catch (err) {
+      console.warn(`[MIA Cache] Error eliminando ${targetPath}:`, err);
+    }
+  }
+
+  /**
+   * Elimina directorios .dist-info que coincidan con un prefijo de paquete.
+   * @param {string} sitePackages Ruta a site-packages.
+   * @param {string} prefix Prefijo del paquete (ej. "manimgl", "wgpu").
+   */
+  removeMatchingDistInfo(sitePackages, prefix) {
+    if (!this.pyodide || !this.pyodide.FS) return;
+    try {
+      const entries = this.pyodide.FS.readdir(sitePackages);
+      for (const entry of entries) {
+        if (entry.toLowerCase().startsWith(prefix.toLowerCase()) && entry.endsWith(".dist-info")) {
+          this.rmrf(`${sitePackages}/${entry}`);
+        }
+      }
+    } catch (err) {
+      console.warn(`[MIA Cache] Error eliminando dist-info de ${prefix}:`, err);
+    }
+  }
+
+  /**
+   * Verifica la existencia de una ruta en pyodide.FS.
+   * @param {string} targetPath Ruta a consultar.
+   */
+  checkPathExists(targetPath) {
+    if (!this.pyodide || !this.pyodide.FS) return false;
+    try {
+      return this.pyodide.FS.analyzePath(targetPath).exists;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Genera una huella digital para una rueda a partir de sus encabezados HTTP (HEAD).
+   * Si cambia el tamaño, ETag o Last-Modified, la huella cambiará.
+   * @param {string} wheelUrl URL absoluta de la rueda.
+   * @param {string} fallbackName Nombre base de respaldo.
+   */
+  async getWheelFingerprint(wheelUrl, fallbackName) {
+    try {
+      const res = await fetch(wheelUrl, { method: "HEAD", cache: "no-store" });
+      if (res.ok) {
+        const etag = res.headers.get("etag") || "";
+        const lastModified = res.headers.get("last-modified") || "";
+        const contentLength = res.headers.get("content-length") || "";
+        return `${fallbackName}:${contentLength}:${lastModified}:${etag}`;
+      }
+    } catch (e) {
+      // Fallback silencioso si HEAD no está soportado o falla
+    }
+    return fallbackName;
+  }
+
+  /**
+   * Limpia toda la caché de paquetes de Python en IDBFS.
+   */
+  async clearPackageCache() {
+    if (!this.pyodide || !this.pyodide.FS) return false;
+    try {
+      const sitePackages = this.pyodide.runPython("import site; site.getsitepackages()[0]");
+      const entries = this.pyodide.FS.readdir(sitePackages);
+      for (const entry of entries) {
+        if (entry === "." || entry === "..") continue;
+        this.rmrf(`${sitePackages}/${entry}`);
+      }
+      await this.syncFS(false);
+      console.info("[MIA Cache] Caché de paquetes IDBFS limpiada con éxito.");
+      return true;
+    } catch (e) {
+      console.error("[MIA Cache] Error limpiando caché IDBFS:", e);
+      return false;
+    }
   }
 }
